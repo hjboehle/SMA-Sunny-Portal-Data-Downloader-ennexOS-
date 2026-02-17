@@ -39,7 +39,7 @@ def test_fetch_data_success(mock_post):
     }
     device_data = {
         "component_id": "12345",
-        "resolution": "PT15M",
+        "resolution": "FiveMinutes",
         "channel_ids": ["Channel.1", "Channel.2"],
     }
     start = datetime(2026, 1, 30, 23, 0, 0)
@@ -69,9 +69,9 @@ def test_fetch_data_success(mock_post):
     assert kwargs["json"]["dateTimeBegin"] == "2026-01-30T23:00:00.000Z"
 
 
-@patch("downloader.service.sunny_portal._get_new_token")
+@patch("downloader.service.sunny_portal.get_new_token")
 @patch("downloader.service.sunny_portal.requests.post")
-def test_fetch_data_token_refresh_success(mock_post, mock_get_new_token):
+def test_fetch_data_token_refresh_success(mock_post, mock_get_token):
     """Testet, ob der Token bei einem 401-Fehler erfolgreich erneuert wird."""
     # Arrange
     # First call returns 401, second call (after token refresh) returns 200
@@ -85,7 +85,7 @@ def test_fetch_data_token_refresh_success(mock_post, mock_get_new_token):
     mock_post.side_effect = [mock_response_401, mock_response_200]
 
     # Mock the token refresh function to return a new token
-    mock_get_new_token.return_value = "new_refreshed_token"
+    mock_get_token.return_value = "new_refreshed_token"
 
     api_data = {
         "api_base_url": "https://api.example.com",
@@ -111,7 +111,7 @@ def test_fetch_data_token_refresh_success(mock_post, mock_get_new_token):
     assert result["data"][0]["values"] == [1, 2]
 
     # Check that mocks were called
-    mock_get_new_token.assert_called_once()
+    mock_get_token.assert_called_once()
     assert mock_post.call_count == 2
 
     # Check that the second call used the new token
@@ -119,9 +119,9 @@ def test_fetch_data_token_refresh_success(mock_post, mock_get_new_token):
     assert second_call_kwargs["headers"]["Authorization"] == "Bearer new_refreshed_token"
 
 
-@patch("downloader.service.sunny_portal._get_new_token")
+@patch("downloader.service.sunny_portal.get_new_token")
 @patch("downloader.service.sunny_portal.requests.post")
-def test_fetch_data_token_refresh_fails(mock_post, mock_get_new_token):
+def test_fetch_data_token_refresh_fails(mock_post, mock_get_token):
     """Testet das Verhalten, wenn der Token-Refresh fehlschlägt."""
     # Arrange
     mock_response_401 = Mock()
@@ -129,7 +129,7 @@ def test_fetch_data_token_refresh_fails(mock_post, mock_get_new_token):
     mock_post.return_value = mock_response_401  # Always return 401
 
     # Mock the token refresh function to return None (failure)
-    mock_get_new_token.return_value = None
+    mock_get_token.return_value = None
 
     api_data = {
         "api_base_url": "https://api.example.com",
@@ -152,7 +152,7 @@ def test_fetch_data_token_refresh_fails(mock_post, mock_get_new_token):
     # Assert
     assert result["valid"] is False
     assert "data" not in result
-    mock_get_new_token.assert_called_once()
+    mock_get_token.assert_called_once()
     mock_post.assert_called_once()  # Only called once, because refresh failed and it broke the loop
 
 

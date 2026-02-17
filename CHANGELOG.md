@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic retry mechanism with up to 3 attempts for transient API failures (non-200 status codes, network errors).
 - Configurable request timeout parameter in `fetch_data()` function (default: 10 seconds).
 - Interactive prompts for username and password input if not provided via environment variables (password input is hidden).
+- Validation for required environment variables (`SUNNY_PORTAL_API_BASE_URL`, `SMA_COMPONENT_ID`, etc.) on startup.
+- Default value for `SUNNY_PORTAL_LOGIN_URL` to simplify configuration.
 
 ### Changed
 
@@ -24,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `save_data_to_json_file` utility to handle `dict` and `list` input types for automatic JSON serialization.
 - Improved `fetch_data()` with retry logic: API rate limits and transient errors are automatically retried before aborting.
 - Optimized polling behavior: API is paused for 1 second only after successful requests, not after failed attempts.
+- Updated `main.py` to skip saving JSON files if the API returns empty values for a channel.
+- Changed authentication flow to perform an initial login at application start instead of waiting for a 401 error.
 
 ### Fixed
 

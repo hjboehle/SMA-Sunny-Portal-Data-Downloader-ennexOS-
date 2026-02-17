@@ -38,7 +38,7 @@ def get_sunny_portal_header(authorization_token: str) -> dict:
     }
 
 
-def _get_new_token(api_data: dict) -> dict:
+def get_new_token(api_data: dict) -> str | None:
     """
     Attempts to fetch a new bearer token by simulating a login.
 
@@ -47,10 +47,9 @@ def _get_new_token(api_data: dict) -> dict:
                         api_client_id, username, and password.
 
     Returns:
-        dict: A dictionary with "valid" (bool) and "new_token" (str) keys if
-              successful, otherwise {"valid": False}.
+        str | None: The new token as a string if successful, otherwise None.
     """
-    logger.info("Attempting to refresh authentication token...")
+    logger.info("Attempting to fetch authentication token...")
 
     # Validate required configuration
     login_url = api_data.get("api_login_url")
@@ -59,11 +58,11 @@ def _get_new_token(api_data: dict) -> dict:
 
     if not login_url:
         logger.error("Login URL not configured. Cannot refresh token.")
-        return {"valid": False}
+        return None
 
     if not all([username, password]):
         logger.error("Username or password not configured. Cannot refresh token.")
-        return {"valid": False}
+        return None
 
     login_payload = {
         "grant_type": "password",
@@ -73,34 +72,47 @@ def _get_new_token(api_data: dict) -> dict:
         "scope": "openid",
     }
 
-    try:
-        response = requests.post(login_url, data=login_payload, timeout=10)
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(login_url, data=login_payload, timeout=10)
 
-        if response.status_code == 200:
-            try:
-                token_data = response.json()
-            except requests.exceptions.JSONDecodeError as e:
-                logger.error("Failed to parse token response JSON: %s", e)
-                return {"valid": False}
+            if response.status_code == 200:
+                try:
+                    token_data = response.json()
+                except requests.exceptions.JSONDecodeError as e:
+                    logger.error("Failed to parse token response JSON: %s", e)
+                    return None  # Don't retry if response is malformed
 
-            new_token = token_data.get("access_token")
-            if new_token:
-                logger.info("Successfully refreshed authentication token.")
-                return {"valid": True, "new_token": new_token}
+                new_token = token_data.get("access_token")
+                if new_token:
+                    logger.info("Successfully fetched authentication token.")
+                    return new_token
 
-            logger.error("Login successful, but no token found in response: %s", token_data)
-            return {"valid": False}
+                logger.error("Login successful, but no token found in response: %s", token_data)
+                return None  # Don't retry if login is ok but token is missing
 
-        logger.error(
-            "Failed to refresh token. Login failed with status %s. URL: %s",
-            response.status_code,
-            login_url,
-        )
-        return {"valid": False}
+            logger.warning(
+                "Failed to get token on attempt %d/%d. Status: %s.",
+                attempt + 1,
+                max_retries,
+                response.status_code,
+            )
 
-    except requests.exceptions.RequestException as e:
-        logger.error("An error occurred during token refresh: %s", e)
-        return {"valid": False}
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                "A network error occurred during token refresh on attempt %d/%d: %s",
+                attempt + 1,
+                max_retries,
+                e,
+            )
+
+        if attempt < max_retries - 1:
+            logger.info("Retrying in 2 seconds...")
+            time.sleep(2)
+
+    logger.error("Failed to fetch authentication token after %d attempts.", max_retries)
+    return None
 
 
 def fetch_data(
@@ -136,13 +148,19 @@ def fetch_data(
     all_requests_valid = True
 
     for channel_id in device_data["channel_ids"]:
+        logger.info(
+            "Fetching data for day %s and channel: %s, resolution: %s",
+            device_data.get("day"),
+            channel_id,
+            device_data.get("resolution")
+        )
         # Create a simple payload with a single query item
         payload = {
             "queryItems": [
                 {
                     "componentId": device_data["component_id"],
                     "channelId": channel_id,
-                    "resolution": device_data.get("resolution", "FifteenMinutes"),
+                    "resolution": device_data.get("resolution"),
                     "timezone": "Europe/Berlin",
                     "aggregate": "Avg",
                     "multiAggregate": "Sum",
@@ -172,10 +190,10 @@ def fetch_data(
                     logger.warning(
                         "Received 401 Unauthorized. Token may have expired. Attempting refresh..."
                     )
-                    new_token = _get_new_token(api_data)
-                    if new_token["valid"]:
-                        api_data["authorization_token"] = new_token["new_token"]
-                        headers = get_sunny_portal_header(new_token["new_token"])
+                    new_token = get_new_token(api_data)
+                    if new_token:
+                        api_data["authorization_token"] = new_token
+                        headers = get_sunny_portal_header(new_token)
                         logger.info("Retrying request for channel %s with new token.", channel_id)
                         response = requests.post(
                             url, headers=headers, json=payload, timeout=timeout

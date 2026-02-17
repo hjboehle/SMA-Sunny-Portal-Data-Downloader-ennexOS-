@@ -10,5 +10,6 @@ build/
 *.egg-info/
 load_env.sh
 /data_examples
-/output
+/output/*.json
+/output/*.txt
 /temp

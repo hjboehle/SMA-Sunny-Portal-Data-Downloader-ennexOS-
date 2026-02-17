@@ -13,21 +13,20 @@ cd SMA-Sunny-Portal-Data-Downloader-ennexOS-
 
 ## Preparation
 
-The software provided here utilizes the same API as the Sunny Portal WebGUI. Therefore, the environment variable values must be retrieved from the browser's developer tools after you are logged in. In the "Network" tab, select a GET request. The request "headers" are displayed on the right. The required environment variables are defined as follows:
+The software requires several environment variables to be set. For authentication, you need to provide your username and password (`SUNNY_PORTAL_USERNAME`, `SUNNY_PORTAL_PASSWORD`).
 
-**Required:**
+Other required values can be retrieved from your browser's developer tools while you are logged into the Sunny Portal. Open the "Network" tab, trigger an API request (e.g., by viewing details), and inspect the request.
 
-* `SUNNY_PORTAL_API_BASE_URL`: Composed of the protocol (https://) and the "Host".
-* `SUNNY_PORTAL_AUTHORIZATION_TOKEN`: Found under Request Headers in the "Authorization" field (excluding the "Bearer " prefix).
-* `SMA_COMPONENT_ID`: Can be found directly in the "headers".
-* `SUNNY_PORTAL_LOGIN_URL`: The OAuth2 login endpoint URL.
-* `SUNNY_PORTAL_API_ENDPOINT`: The API endpoint for data queries.
-* `TIME_ZONE`: Your timezone (e.g., "Europe/Berlin").
+The following variables must be set:
 
-**Optional (if not provided via environment variables):**
-
-* `SUNNY_PORTAL_USERNAME`: Your Sunny Portal username. If not set, you will be prompted to enter it interactively.
-* `SUNNY_PORTAL_PASSWORD`: Your Sunny Portal password. If not set, you will be prompted to enter it interactively (password input is hidden).
+* `SUNNY_PORTAL_API_BASE_URL`: The base URL for the API. Typically [https://uiapi.sunnyportal.com/api/v1](https://uiapi.sunnyportal.com/api/v1).
+* `SUNNY_PORTAL_API_ENDPOINT`: The endpoint for fetching data. Typically `plant-data`.
+* `SMA_COMPONENT_ID`: The unique ID of your inverter. This can be found in the "Payload" or "Body" of an API request as `componentId`.
+* `TIME_ZONE`: Your local timezone, e.g., `Europe/Berlin`.
+* `SUNNY_PORTAL_LOGIN_URL`: The URL for authentication. This has a default value [https://login.sma.energy/auth/realms/SMA/protocol/openid-connect/token](https://login.sma.energy/auth/realms/SMA/protocol/openid-connect/token) and usually does not need to be set manually.
+* `START_DATE`: The start date for the data download in `YYYY-MM-DD` format (e.g., `2025-01-01`).
+* `END_DATE`: The end date for the data download in `YYYY-MM-DD` format (e.g., `2025-01-31`).
+* `SMA_RESOLUTION`: (Optional) The time resolution for the data. Defaults to `FiveMinutes`. Other possible values are `FifteenMinutes`, `OneHour`, `OneDay`.
 
 ## Execution
 
