@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive list of available measurement channels in `config.py` (PV, Battery, Grid, DC Strings).
 - Automatic retry mechanism with up to 3 attempts for transient API failures (non-200 status codes, network errors).
 - Configurable request timeout parameter in `fetch_data()` function (default: 10 seconds).
+- Interactive prompts for username and password input if not provided via environment variables (password input is hidden).
 
 ### Changed
 

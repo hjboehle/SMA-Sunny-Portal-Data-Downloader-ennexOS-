@@ -1,6 +1,7 @@
 """module downloader.config"""
 
 import os
+import getpass
 from downloader.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -16,6 +17,16 @@ SUNNY_PORTAL_PASSWORD = os.getenv("SUNNY_PORTAL_PASSWORD")
 SMA_COMPONENT_ID = os.getenv("SMA_COMPONENT_ID")
 
 TIME_ZONE = os.getenv("TIME_ZONE")
+
+# Prompt for username if not set
+if not SUNNY_PORTAL_USERNAME:
+    logger.info("Username not found in environment variables. Requesting user input...")
+    SUNNY_PORTAL_USERNAME = input("Please enter your Sunny Portal username: ")
+
+# Prompt for password if not set
+if not SUNNY_PORTAL_PASSWORD:
+    logger.info("Password not found in environment variables. Requesting user input...")
+    SUNNY_PORTAL_PASSWORD = getpass.getpass("Please enter your Sunny Portal password: ")
 
 SUNNY_PORTAL_API_DATA = {
     "api_login_url": SUNNY_PORTAL_API_LOGIN_URL,
