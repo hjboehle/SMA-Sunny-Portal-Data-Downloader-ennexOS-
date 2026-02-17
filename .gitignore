@@ -11,3 +11,4 @@ build/
 load_env.sh
 /data_examples
 /output
+/temp

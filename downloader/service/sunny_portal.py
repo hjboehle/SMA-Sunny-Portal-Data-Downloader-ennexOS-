@@ -20,7 +20,8 @@ def get_sunny_portal_header(authorization_token: str) -> dict:
     """
     return {
         "Authorization": f"Bearer {authorization_token.strip()}",
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/144.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
         "Cache-Control": "no-cache",
@@ -37,57 +38,69 @@ def get_sunny_portal_header(authorization_token: str) -> dict:
     }
 
 
-def _get_new_token(api_data: dict) -> str | None:
+def _get_new_token(api_data: dict) -> dict:
     """
     Attempts to fetch a new bearer token by simulating a login.
 
-    THIS IS A PLACEHOLDER! You need to find the correct login endpoint and payload.
-    1. Use browser dev tools on the login page to find the URL and payload.
-    2. Update `login_url` and `login_payload`.
-    3. Check the JSON response to find the key for the token (e.g., "access_token").
+    Args:
+        api_data (dict): The API data configuration containing api_login_url,
+                        api_client_id, username, and password.
+
+    Returns:
+        dict: A dictionary with "valid" (bool) and "new_token" (str) keys if
+              successful, otherwise {"valid": False}.
     """
     logger.info("Attempting to refresh authentication token...")
 
-    # Wir nutzen den Standard OAuth2 Token-Endpunkt von SMA (Keycloak)
-    # Basierend auf deiner URL: Realm = SMA, Client-ID = SPpbeOS
-    login_url = "https://login.sma.energy/auth/realms/SMA/protocol/openid-connect/token"
+    # Validate required configuration
+    login_url = api_data.get("api_login_url")
+    username = api_data.get("username")
+    password = api_data.get("password")
+
+    if not login_url:
+        logger.error("Login URL not configured. Cannot refresh token.")
+        return {"valid": False}
+
+    if not all([username, password]):
+        logger.error("Username or password not configured. Cannot refresh token.")
+        return {"valid": False}
 
     login_payload = {
         "grant_type": "password",
-        "client_id": "SPpbeOS",  # Aus deiner URL extrahiert
-        "username": api_data.get("username"),
-        "password": api_data.get("password"),
+        "client_id": api_data.get("api_client_id"),
+        "username": username,
+        "password": password,
         "scope": "openid",
     }
 
-    if not all([login_payload["username"], login_payload["password"]]):
-        logger.error("Username or password not configured. Cannot refresh token.")
-        return None
-
     try:
-        # OAuth2 erwartet Form-URL-Encoded Daten (data=...), kein JSON!
-        # Header werden von requests automatisch gesetzt (Content-Type: application/x-www-form-urlencoded)
         response = requests.post(login_url, data=login_payload, timeout=10)
 
         if response.status_code == 200:
-            token_data = response.json()
+            try:
+                token_data = response.json()
+            except requests.exceptions.JSONDecodeError as e:
+                logger.error("Failed to parse token response JSON: %s", e)
+                return {"valid": False}
+
             new_token = token_data.get("access_token")
             if new_token:
                 logger.info("Successfully refreshed authentication token.")
-                return new_token
+                return {"valid": True, "new_token": new_token}
+
             logger.error("Login successful, but no token found in response: %s", token_data)
-            return None
+            return {"valid": False}
 
         logger.error(
             "Failed to refresh token. Login failed with status %s. URL: %s",
             response.status_code,
             login_url,
         )
-        return None
+        return {"valid": False}
 
     except requests.exceptions.RequestException as e:
         logger.error("An error occurred during token refresh: %s", e)
-        return None
+        return {"valid": False}
 
 
 def fetch_data(
@@ -95,18 +108,24 @@ def fetch_data(
     device_data: dict,
     start_date: datetime,
     end_date: datetime,
+    timeout: int = 10,
 ) -> dict:
     """
     Fetches data from the Sunny Portal API.
 
     Args:
-        api_data (dict): The API data configuration.
-        device_data (dict): The device data configuration.
+        api_data (dict): The API data configuration containing api_base_url,
+            endpoint, and authorization_token.
+        device_data (dict): The device data configuration containing channel_ids
+            and component_id.
         start_date (datetime): The start date for the data fetch.
         end_date (datetime): The end date for the data fetch.
+        timeout (int): Request timeout in seconds. Defaults to 10.
 
     Returns:
-        dict: The data fetched from the API.
+        dict: Dictionary with "valid" (bool) and optional "data" (list) keys.
+            {"valid": False} if no data fetched or errors occurred,
+            {"valid": True, "data": [...]} on success.
     """
     logger.info("Data from Sunny Portal API are fetching...")
     fetch_data_result = {"valid": False}
@@ -134,46 +153,102 @@ def fetch_data(
             "dateTimeEnd": end_date.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         }
 
-        try:
-            logger.debug("Fetching data for channel: %s", channel_id)
-            response = requests.post(url, headers=headers, json=payload, timeout=10)
+        max_retries = 3
+        retry_count = 0
+        channel_success = False
 
-            # Handle expired token (401 Unauthorized) and retry once.
-            if response.status_code == 401:
-                logger.warning(
-                    "Received 401 Unauthorized. Token may have expired. Attempting refresh..."
-                )
-                new_token = _get_new_token(api_data)
-                if new_token:
-                    api_data["authorization_token"] = new_token
-                    headers = get_sunny_portal_header(new_token)
-                    logger.info("Retrying request for channel %s with new token.", channel_id)
-                    response = requests.post(url, headers=headers, json=payload, timeout=10)
-                else:
-                    logger.error("Token refresh failed. Cannot continue for other channels.")
-                    all_requests_valid = False
-                    break  # Stop trying other channels if we can't log in
-
-            if response.status_code == 200:
-                # The API returns a list of results (even for one item).
-                # We extend our aggregated list with these results.
-                data = response.json()
-                aggregated_data.extend(data)
-            else:
-                logger.error(
-                    "Failed to fetch channel %s. Status: %s. Response: %s",
+        while retry_count < max_retries and not channel_success:
+            try:
+                logger.debug(
+                    "Fetching data for channel: %s (attempt %d/%d)",
                     channel_id,
-                    response.status_code,
-                    response.text
+                    retry_count + 1,
+                    max_retries,
                 )
-                all_requests_valid = False
+                response = requests.post(url, headers=headers, json=payload, timeout=timeout)
 
-            # Pause for 1 second to avoid stressing the API
-            time.sleep(1)
+                # Handle expired token (401 Unauthorized) and retry once.
+                if response.status_code == 401:
+                    logger.warning(
+                        "Received 401 Unauthorized. Token may have expired. Attempting refresh..."
+                    )
+                    new_token = _get_new_token(api_data)
+                    if new_token["valid"]:
+                        api_data["authorization_token"] = new_token["new_token"]
+                        headers = get_sunny_portal_header(new_token["new_token"])
+                        logger.info("Retrying request for channel %s with new token.", channel_id)
+                        response = requests.post(
+                            url, headers=headers, json=payload, timeout=timeout
+                        )
+                    else:
+                        logger.error("Token refresh failed. Cannot continue for other channels.")
+                        all_requests_valid = False
+                        break
 
-        except requests.exceptions.RequestException as e:
-            logger.error("RequestException for channel %s: %s", channel_id, e)
-            all_requests_valid = False
+                if response.status_code == 200:
+                    # The API returns a list of results (even for one item).
+                    # We extend our aggregated list with these results.
+                    try:
+                        data = response.json()
+                        aggregated_data.extend(data)
+                        channel_success = True
+                        # Pause for 1 second to avoid stressing the API
+                        time.sleep(1)
+                    except requests.exceptions.JSONDecodeError as e:
+                        logger.error(
+                            "Failed to parse JSON response for channel %s: %s",
+                            channel_id,
+                            e,
+                        )
+                        all_requests_valid = False
+                        break
+                else:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        logger.warning(
+                            "Failed to fetch channel %s. Status: %s. Retrying... (%d/%d)",
+                            channel_id,
+                            response.status_code,
+                            retry_count,
+                            max_retries,
+                        )
+                        time.sleep(1)
+                    else:
+                        logger.error(
+                            "Failed to fetch channel %s after %d attempts. Status: %s. "
+                            "Response: %s",
+                            channel_id,
+                            max_retries,
+                            response.status_code,
+                            response.text,
+                        )
+                        all_requests_valid = False
+                        break
+
+            except requests.exceptions.RequestException as e:
+                retry_count += 1
+                if retry_count < max_retries:
+                    logger.warning(
+                        "RequestException for channel %s: %s. Retrying... (%d/%d)",
+                        channel_id,
+                        e,
+                        retry_count,
+                        max_retries,
+                    )
+                    time.sleep(1)
+                else:
+                    logger.error(
+                        "RequestException for channel %s after %d attempts: %s",
+                        channel_id,
+                        max_retries,
+                        e,
+                    )
+                    all_requests_valid = False
+                    break
+
+        # If all retries failed, abort
+        if not channel_success and all_requests_valid is False:
+            break
 
     if aggregated_data:
         fetch_data_result["valid"] = (

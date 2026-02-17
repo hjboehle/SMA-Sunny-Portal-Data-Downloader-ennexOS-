@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic OAuth2 token refresh mechanism when the API returns a 401 Unauthorized status.
 - Configuration for Sunny Portal username and password (`SUNNY_PORTAL_USERNAME`, `SUNNY_PORTAL_PASSWORD`).
 - Comprehensive list of available measurement channels in `config.py` (PV, Battery, Grid, DC Strings).
+- Automatic retry mechanism with up to 3 attempts for transient API failures (non-200 status codes, network errors).
+- Configurable request timeout parameter in `fetch_data()` function (default: 10 seconds).
 
 ### Changed
 
@@ -19,10 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed default data resolution from "PT15M" to "FifteenMinutes" to match API requirements.
 - Updated `main.py` to save output files individually per channel with a `YYYY-MM-DD_ChannelName.json` naming convention.
 - Updated `save_data_to_json_file` utility to handle `dict` and `list` input types for automatic JSON serialization.
+- Improved `fetch_data()` with retry logic: API rate limits and transient errors are automatically retried before aborting.
+- Optimized polling behavior: API is paused for 1 second only after successful requests, not after failed attempts.
 
 ### Fixed
 
 - Fixed issue where `save_data_to_json_file` expected a string but received a dictionary.
+- Fixed critical logic error in `_get_new_token()` where error logging was executed unconditionally, causing duplicate error messages.
+- Fixed missing `login_url` validation in `_get_new_token()` to prevent crashes with incomplete configuration.
+- Added proper exception handling for JSON parsing errors in `fetch_data()` to prevent crashes on malformed API responses.
+- Fixed inconsistent timeout parameter usage in `fetch_data()` (was hardcoded to 10 seconds in first request, now uses configurable parameter everywhere).
 
 ## [0.0.1] - 2026-02-12
 

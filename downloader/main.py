@@ -29,7 +29,7 @@ def main():
     # Configure the date for which data should be downloaded
     download_day = datetime(2026, 1, 31).date()
 
-    # Define time zones for Berlin and UTC
+    # Define time zone and UTC
     tz = ZoneInfo(TIME_ZONE)
     utc_tz = ZoneInfo("UTC")
 
