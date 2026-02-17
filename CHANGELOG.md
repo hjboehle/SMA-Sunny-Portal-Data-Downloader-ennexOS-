@@ -5,9 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2026-02-14
+## [0.0.2] - 2026-02-17
 
-### Added
+### Added [0.0.2]
 
 - Automatic OAuth2 token refresh mechanism when the API returns a 401 Unauthorized status.
 - Configuration for Sunny Portal username and password (`SUNNY_PORTAL_USERNAME`, `SUNNY_PORTAL_PASSWORD`).
@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validation for required environment variables (`SUNNY_PORTAL_API_BASE_URL`, `SMA_COMPONENT_ID`, etc.) on startup.
 - Default value for `SUNNY_PORTAL_LOGIN_URL` to simplify configuration.
 
-### Changed
+### Changed [0.0.2]
 
 - Refactored `fetch_data` service to query each channel individually instead of a bulk request.
 - Changed default data resolution from "PT15M" to "FifteenMinutes" to match API requirements.
@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `main.py` to skip saving JSON files if the API returns empty values for a channel.
 - Changed authentication flow to perform an initial login at application start instead of waiting for a 401 error.
 
-### Fixed
+### Fixed [0.0.2]
 
 - Fixed issue where `save_data_to_json_file` expected a string but received a dictionary.
 - Fixed critical logic error in `_get_new_token()` where error logging was executed unconditionally, causing duplicate error messages.
